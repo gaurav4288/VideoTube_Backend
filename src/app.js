@@ -19,9 +19,13 @@ app.use(express.urlencoded({
 app.use(express.static('public'));
 app.use(cookieParser());
 
-app.get('/', (re, res) => {
-    res.send('This is Homepage');
-});
+//routes
+import userRouter from './routes/user.route.js'
+
+
+//routes declaration
+app.use("/api/v1/users", userRouter)
+
 
 
 
