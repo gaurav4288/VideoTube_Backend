@@ -19,17 +19,18 @@ router.post("/register",
     registerUser
 )
 router.post("/login", loginUser);
-router.get("/channel/:username", getUserChannelProfile);
 
 //secure routes
 router.post("/logout",verifyJWT, logoutUser);
 router.post("/refresh-token", refreshAccessToken);
 router.get("/current-user", verifyJWT, getCurrentUser);
 router.put("/update-account", verifyJWT, updateAccountDetails);
-router.post("/change-password", verifyJWT, changeCurrentPassword);
+router.put("/change-password", verifyJWT, changeCurrentPassword);
 router.put("/update-avatar", verifyJWT, upload.single("avatar"), updateUserAvatar);
 router.put("/update-cover-image", verifyJWT, upload.single("coverImage"), updateUserCoverImage);
 router.get("/history", verifyJWT , getWatchHistory);
+router.get("/channel/:username", verifyJWT, getUserChannelProfile);
+
 
 
 
