@@ -53,17 +53,14 @@ const registerUser = asyncHandler(async (req, res) => {
 
     const avatarLocalPath = req.files?.avatar[0]?.path;
     if (!avatarLocalPath) {
-        throw new ApiError(400, "Avatar file is required")
+        throw new ApiError(400, "Avatar file is required");
     }
 
-    let coverImageLocalPath;
-    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
-        coverImageLocalPath = req.files.coverImage[0].path
-    }
+    const coverImageLocalPath =  req.files?.coverImage[0].path;
 
     // console.log("Uploading avatar to Cloudinary:", avatarLocalPath);
-    const avatar = await uploadOnCloudinary(avatarLocalPath)
-    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
+    const avatar = await uploadOnCloudinary(avatarLocalPath);
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
     // console.log("Avatar uploaded:", avatar);
 
     if (!avatar) {
@@ -261,6 +258,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 })
 
 const updateUserAvatar = asyncHandler(async (req, res) => {
+    console.log(req.file);
     const avatarLocalPath = req.file?.path;
     if (!avatarLocalPath) {
         throw new ApiError(400, "Avatar file is required")
@@ -273,8 +271,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
     const deleteAvatar = req.user?.avatar;
     if(deleteAvatar) {
-        await deleteFromCloudinary(deleteAvatar);
-        console.log("Avatar deleted from cloudinary");
+        await deleteFromCloudinary(deleteAvatar, "image");
     }
     const user = await User.findByIdAndUpdate(
         req.user?._id,
@@ -305,7 +302,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     
     const deleteCoverImage = req.user?.coverImage;
     if(deleteCoverImage) {
-        await deleteFromCloudinary(deleteCoverImage);
+        await deleteFromCloudinary(deleteCoverImage, "image");
         console.log("coverImage deleted from cloudinary");
     }
     const user = await User.findByIdAndUpdate(
