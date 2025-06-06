@@ -5,6 +5,9 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { deleteFromCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js";
 import Fuse from "fuse.js";
+import { Like } from "../models/like.model.js";
+import { Comment } from "../models/comment.model.js";
+import { User } from "../models/user.model.js";
 
 
 const getAllVideo = asyncHandler(async (req, res) => {
@@ -336,11 +339,84 @@ const updateVideo = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, updatedVideo, "Video updated successfully"));
 });
 
+const deleteVideo = asyncHandler(async (req, res) => {
+    const { videoId } = req.params;
 
+    // Validate videoId
+    if (!videoId || !Types.ObjectId.isValid(videoId)) {
+        throw new ApiError(400, "A valid videoId is required");
+    }
+
+    // Find and delete the video
+    const video = await Video.findByIdAndDelete(
+        {
+            _id: videoId,
+            owner: req.user?._id
+        }
+    );
+    if (!video) {
+        throw new ApiError(404, "Video not found or user not authorized to delete file");
+    }
+
+    // Delete video and thumbnail from Cloudinary
+    try {
+        await deleteFromCloudinary(video.videoFile, "video");
+        await deleteFromCloudinary(video.thumbnail);
+    } catch (cloudErr) {
+        // Log but don't block deletion
+        console.error("Cloudinary deletion error:", cloudErr);
+    }
+
+    // Delete related likes and comments
+    await Like.deleteMany({ video: videoId });
+    await Comment.deleteMany({ video: videoId });
+
+    // Remove video from users' watchHistory
+    await User.updateMany(
+        { watchHistory: videoId },
+        { $pull: { watchHistory: videoId } }
+    );
+
+    return res.status(200).json(
+        new ApiResponse(200, { videoId }, "Video deleted successfully")
+    );
+});
+
+const togglePublishStatus = asyncHandler(async (req, res) => {
+    const { videoId } = req.params;
+    const { isPublished } = req.body;
+
+    const validispublished = ['true', 'false'];
+        if (!validispublished.includes(isPublished)) {
+            throw new ApiError(400, `Invalid isPublished key. Valid fields are: ${validispublished.join(', ')}`);
+        }
+
+    const video = await Video.findByIdAndUpdate(
+        {
+            _id: videoId,
+            owner: req.user?._id
+        },
+        {
+            $set:{
+                isPublished: isPublished
+            }
+        },
+        {new:true}
+    )
+    if(!video) {
+        throw new ApiError(404, "Video not found or user not authorized to delete file");
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, video, `PublishStatus changed to ${isPublished} successfully `))
+});
 
 export {
     getAllVideo,
     publishAVideo,
     getVideoById,
     updateVideo,
+    deleteVideo,
+    togglePublishStatus
 }
