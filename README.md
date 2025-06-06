@@ -113,6 +113,6 @@ Pull requests are welcome! For major changes, please open an issue first to disc
 
 ## Author
 
-- [Your Name](https://github.com/gaurav4288)
+- [Gaurav Kumar Singh](https://github.com/gaurav4288)
 
 
