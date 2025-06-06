@@ -1,4 +1,4 @@
-# Youtube-like Backend API
+# VideoTube Backend API
 
 This project is a backend API for a Youtube-like video sharing platform, built with **Node.js**, **Express**, and **MongoDB**. It supports user authentication, video upload and streaming, likes, comments, subscriptions, watch history, and more.
 
