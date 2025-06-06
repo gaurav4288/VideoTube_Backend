@@ -3,6 +3,7 @@ import path from "path";
 import { v2 as cloudinary } from "cloudinary";
 import fs from 'fs';
 import { promisify } from 'util';
+import { json } from "stream/consumers";
 
 const execPromise = promisify(exec);
 
@@ -63,8 +64,6 @@ const uploadOnCloudinary = async (inputPath, type = 'image') => {
         }
 
         const uploadPath = shouldCompress ? outputPath : inputPath;
-        fs.unlinkSync(inputPath);
-
         console.log("Uploading to Cloudinary...");
         const result = await cloudinary.uploader.upload(uploadPath, {
             resource_type: type,
@@ -74,13 +73,15 @@ const uploadOnCloudinary = async (inputPath, type = 'image') => {
 
         // Cleanup
         shouldCompress && fs.unlinkSync(outputPath);
+        fs.unlinkSync(inputPath);
 
         return {
             url: result.secure_url,
             duration: result.duration,
         };
     } catch (err) {
-        console.error("Error in uploadOnCloudinary:", err.message);
+        if(inputPath) fs.unlinkSync(inputPath);
+        console.error("Error in uploadOnCloudinary:", JSON.stringify(err.message));
         throw err;
     }
 };

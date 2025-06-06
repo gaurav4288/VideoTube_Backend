@@ -3,8 +3,9 @@ import { Video } from "../models/video.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { deleteFromCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js";
 import Fuse from "fuse.js";
+
 
 const getAllVideo = asyncHandler(async (req, res) => {
     try {
@@ -154,12 +155,192 @@ const publishAVideo = asyncHandler(async (req, res) => {
         new ApiResponse(200, { video, videoFile }, "video uploaded successfully")
     )
 
-})
+});
 
+const getVideoById = asyncHandler(async (req, res) => {
+    const videoId = req.params?.videoId;
+
+    if (!videoId) {
+        throw new ApiError(400, "videoId can't be empty");
+    }
+    const video = await Video.aggregate([
+        { $match: { _id: new Types.ObjectId(videoId) } },
+        {
+            $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "video",
+                as: "likes"
+            }
+        },
+        {
+            $lookup: {
+                from: "comments",
+                localField: "_id",
+                foreignField: "video",
+                as: "comments",
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "owner",
+                            foreignField: "_id",
+                            as: "ownerDetails"
+                        }
+                    },
+                    {
+                        $addFields: {
+                            owner: { $arrayElemAt: ["$ownerDetails", 0] }
+                        }
+                    },
+                    {
+                        $project: {
+                            content: 1,
+                            createdAt: 1,
+                            owner: {
+                                _id: "$owner._id",
+                                username: "$owner.username",
+                                avatar: "$owner.avatar"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "owner",
+                foreignField: "channel",
+                as: "subscribers"
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                let: { videoId: "$_id" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $in: ["$$videoId", "$watchHistory"] }
+                        }
+                    },
+                    { $count: "count" }
+                ],
+                as: "views"
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "ownerDetails"
+            }
+        },
+        {
+            $addFields: {
+                likesCount: {
+                    $size: "$likes"
+                },
+                commentCount: {
+                    $size: "$comments"
+                },
+                subscribersCount: {
+                    $size: "$subscribers"
+                },
+                views: { 
+                    $ifNull: [{ $arrayElemAt: ["$views.count", 0] }, 0] 
+                },
+                isSubscribed: {
+                    $cond: {
+                        if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+                        then: true,
+                        else: false
+                    }
+                },
+                owner: { $arrayElemAt: ["$ownerDetails", 0] }
+            }
+        },
+        {
+            $project: {
+                videoFile: 1,
+                thumbnail: 1,
+                title: 1,
+                description: 1,
+                duration: 1,
+                views: 1,
+                isPublished: 1,
+                createdAt: 1,
+                likesCount: 1,
+                commentCount: 1,
+                subscribersCount: 1,
+                isSubscribed: 1,
+                comments: 1,
+                owner: {
+                    _id: "$owner._id",
+                    username: "$owner.username",
+                    avatar: "$owner.avatar"
+                }
+            }
+        }
+    ])
+
+    if (!video?.length) {
+        throw new ApiError(404, "Video not found");
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, video[0], "Video fetched successfully"));
+});
+
+const updateVideo = asyncHandler(async (req, res) => {
+    const { videoId } = req.params;
+    const thumbnailLocalPath = req.file?.path;
+    const { title, description } = req.body;
+
+    if (!videoId) {
+        throw new ApiError(400, "Video ID is required");
+    }
+    if (!thumbnailLocalPath || !title || !description) {
+        throw new ApiError(400, "All fields (title, description, thumbnail) are required");
+    }
+
+     const video = await Video.findOne({ _id: videoId, owner: req.user?._id });
+    if (!video) {
+        throw new ApiError(404, "Video not found or you are not authorized to update it");
+    }
+    console.log(video);
+    console.log(thumbnailLocalPath);
+
+    const thumbnail = await uploadOnCloudinary(thumbnailLocalPath);
+    if (!thumbnail?.url) {
+        throw new ApiError(500, "Error uploading thumbnail to Cloudinary");
+    }
+
+    // Save old thumbnail to delete later
+    const oldThumbnail = video.thumbnail;
+
+    video.title = title;
+    video.description = description;
+    video.thumbnail = thumbnail.url;
+
+    const updatedVideo = await video.save();
+
+    // Delete old thumbnail from cloudinary if exists
+    if (oldThumbnail) {
+        await deleteFromCloudinary(oldThumbnail);
+    }
+
+    return res.status(200).json(new ApiResponse(200, updatedVideo, "Video updated successfully"));
+});
 
 
 
 export {
     getAllVideo,
     publishAVideo,
+    getVideoById,
+    updateVideo,
 }

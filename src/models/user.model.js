@@ -17,8 +17,8 @@ const userSchema = new Schema(
             type: String,
             required: true,
             unique: true,
-            lowecase: true,
-            trim: true, 
+            lowercase: true,
+            trim: true,
         },
         fullName: {
             type: String,
@@ -52,6 +52,8 @@ const userSchema = new Schema(
         timestamps: true
     }
 )
+
+// userSchema.plugin(mongooseAggregatePaginate);
 
 userSchema.pre("save", async function (next) {
     if(!this.isModified("password")) return next();
